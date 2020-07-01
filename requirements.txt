@@ -2,3 +2,4 @@ wheel
 azure-functions
 azure-storage-blob
 azure-servicebus
+azure-storage-queue

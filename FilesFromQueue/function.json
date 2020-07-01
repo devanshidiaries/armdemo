@@ -1,0 +1,27 @@
+{
+  "scriptFile": "__init__.py",
+  "bindings": [
+    {
+      "queueName": "outqueue",
+      "connection": "target_files_connection",
+      "name": "queuemsg",
+      "type": "queueTrigger",
+      "direction": "in"
+    },
+    {
+      "name": "inputblob",
+      "type": "blob",
+      "dataType": "string",
+      "path": "fake-date-files/{queueTrigger}",
+      "connection": "source_files_connection",
+      "direction": "in"
+    },
+    {
+      "name": "$return",
+      "type": "blob",
+      "path": "fake-date-files-queue/{queueTrigger}-Copy",
+      "connection": "target_files_connection",
+      "direction": "out"
+    }
+  ]
+}
