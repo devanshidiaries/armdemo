@@ -1,0 +1,191 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "storageAccountNamefunc": {
+	 "defaultValue" : "funcstoreac",
+      "type": "string",
+	  "metadata": {
+        "description": "Specifies the name of the Azure Storage account for Azure Function."
+		}
+    },
+    "storageAccountName": {
+      "defaultValue": "targetstorageac",
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the name of the Azure Storage account for short-lived files."
+      }
+    },
+    "appName": {
+      "type": "string",
+      "defaultValue": "storagefuncpynasuni",
+      "metadata": {
+        "description": "The name of the function app that you wish to create."
+      }
+    },
+    "workerSize": {
+      "type": "string",
+      "allowedValues": [
+        "0",
+        "1",
+        "2"
+      ],
+      "defaultValue": "1",
+      "metadata": {
+        "description": "The instance size of the hosting plan (small, medium, or large)."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "East US",
+      "metadata": {
+        "description": "Location for all resources."
+      }
+    }
+  },
+  "variables": {
+    "functionAppName": "[parameters('appName')]",
+    "hostingPlanName": "[parameters('appName')]"
+  },
+  "resources": [
+    {
+            "apiVersion": "2019-06-01",
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[parameters('storageAccountNamefunc')]",
+            "location": "[parameters('location')]",
+            "kind": "StorageV2",
+            "tags": {},
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "properties": {
+                "supportsHttpsTrafficOnly": true
+            }
+        },
+    {
+      "name": "[parameters('storageAccountName')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2018-07-01",
+      "location": "[parameters('location')]",
+      "kind": "StorageV2",
+      "sku": {
+        "name": "Standard_LRS",
+        "tier": "Standard"
+      },
+      "properties": {
+        "accessTier": "Hot"
+      },
+      "resources": [
+        {
+          "name": "default/fake-date-files-queue",
+          "type": "blobServices/containers",
+          "apiVersion": "2019-06-01",
+          "dependsOn": [
+            "[parameters('storageAccountName')]"
+          ]
+        },
+        {
+          "name": "default/outqueue",
+          "type": "queueServices/queues",
+          "apiVersion": "2019-06-01",
+          "dependsOn": [
+            "[parameters('storageAccountName')]"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2019-08-01",
+      "name": "[variables('hostingPlanName')]",
+      "location": "[parameters('location')]",
+      "kind": "linux",
+      "sku": {
+        "Name": "Y1",
+        "tier": "Dynamic"
+      },
+      "properties": {
+        "name": "[variables('hostingPlanName')]",
+        "reserved": true,
+        "computeMode": "Dynamic",
+        "workerSize": "[parameters('workerSize')]",
+        "numberOfWorkers": 1
+      }
+    },
+    {
+      "apiVersion": "2018-11-01",
+      "type": "Microsoft.Web/sites",
+      "name": "[variables('functionAppName')]",
+      "location": "[parameters('location')]",
+      "kind": "functionapp,linux",
+      "properties": {
+        "name": "[variables('functionAppName')]",
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+        "containerSize": 1536,
+        "clientAffinityEnabled": false,
+        "siteConfig": {
+          "alwaysOn" : false,
+          "linuxFxVersion": "PYTHON|3.7",
+          "appSettings": [
+			  {
+			  "name" : "SCM_DO_BUILD_DURING_DEPLOYMENT",
+			  "value" : true
+			  },			  
+			  {
+			  "name" : "ENABLE_ORYX_BUILD",
+			  "value" : true
+			  },
+              {
+                "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                "value": "04a458ff-5478-4cd3-8dcd-db06e9ad7f31",
+                "slotSetting": false
+              },
+              {
+              "name": "AzureWebJobsStorage",
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountNamefunc'),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountNamefunc')), '2019-06-01').keys[0].value,';EndpointSuffix=','core.windows.net')]",
+              "slotSetting": false
+              },
+              {
+                "name": "FUNCTIONS_EXTENSION_VERSION",
+                "value": "~2",
+                "slotSetting": false
+              },
+              {
+                "name": "FUNCTIONS_WORKER_PROCESS_COUNT",
+                "value": "1",
+                "slotSetting": false
+              },
+              {
+                "name": "FUNCTIONS_WORKER_RUNTIME",
+                "value": "python",
+                "slotSetting": false
+              },
+              {
+                "name": "source_files_connection",
+                "value": "Source_Blob",
+                "slotSetting": false
+              },
+              {
+                "name": "target_files_connection",
+                "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountName'),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2019-06-01').keys[0].value,';EndpointSuffix=','core.windows.net')]",
+                "slotSetting": false
+              },
+              
+              {
+                "name": "WEBSITE_RUN_FROM_PACKAGE",
+                "value": "BLOB_SAS_URL",
+                "slotSetting": false
+              }
+            ]
+          }
+        },
+      
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+        "[concat('Microsoft.Storage/storageAccounts/', parameters('storageAccountNamefunc'))]"
+      ],
+      "resources": [
+      ]
+    }
+  ]
+}
